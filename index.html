@@ -65,7 +65,7 @@
             margin-bottom: 15px;
             border-radius: 8px;
             overflow: hidden;
-            display: none; /* Hidden until button is clicked */
+            display: none;
         }
 
         button.btn-scan {
@@ -168,7 +168,7 @@
 
     <div class="container">
         <h1>🌙 Ramadan Distribution</h1>
-        <p class="subtitle">Sharjah Industrial Cities</p>
+        <p class="subtitle">Emirates for Industrial Cities</p>
 
         <div class="counter-box">
             Meals Given: <span id="mealCount">0</span> / 600
@@ -205,9 +205,16 @@
             const readerDiv = document.getElementById('reader');
             const scanBtn = document.getElementById('scanBtn');
 
-            // Initialize the scanner if it hasn't been created yet
+            // Initialize scanner with specific formats for ID cards (PDF417, Code128, QR)
             if (!html5QrCode) {
-                html5QrCode = new Html5Qrcode("reader");
+                html5QrCode = new Html5Qrcode("reader", { 
+                    formatsToSupport: [ 
+                        Html5QrcodeSupportedFormats.QR_CODE, 
+                        Html5QrcodeSupportedFormats.PDF_417, 
+                        Html5QrcodeSupportedFormats.CODE_128,
+                        Html5QrcodeSupportedFormats.CODE_39
+                    ] 
+                });
             }
 
             if (isScanning) {
@@ -221,21 +228,33 @@
             } else {
                 // Start Scanning
                 readerDiv.style.display = 'block';
+                
+                // HD Camera Configuration for better barcode reading
+                const cameraConfig = { 
+                    facingMode: "environment",
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 },
+                    advanced: [{ focusMode: "continuous" }] 
+                };
+
                 html5QrCode.start(
-                    { facingMode: "environment" }, // Use back camera
+                    cameraConfig,
                     {
                         fps: 10,
                         qrbox: { width: 300, height: 150 } // Wide box for ID barcodes
                     },
                     (decodedText) => {
                         // SUCCESSFUL SCAN!
-                        document.getElementById('emiratesId').value = decodedText;
-                        
-                        // Briefly stop the camera so it doesn't scan the same card 50 times in a second
-                        toggleScanner(); 
-                        
-                        // Process the scanned ID automatically
-                        processId(decodedText);
+                        // Stop the camera to prevent double-scanning
+                        html5QrCode.stop().then(() => {
+                            isScanning = false;
+                            readerDiv.style.display = 'none';
+                            scanBtn.innerText = "📷 Open Camera Scanner";
+                            scanBtn.classList.remove('active');
+                            
+                            // Process the scanned ID
+                            processId(decodedText);
+                        });
                     },
                     (errorMessage) => {
                         // Ignore continuous scanning errors 
@@ -245,7 +264,7 @@
                     scanBtn.innerText = "🛑 Stop Camera";
                     scanBtn.classList.add('active');
                 }).catch((err) => {
-                    alert("Could not start camera. Please ensure you gave permission and are using a secure (HTTPS) link.");
+                    alert("Could not start camera. Please ensure you are using a secure (HTTPS) link and granted camera permissions.");
                     readerDiv.style.display = 'none';
                 });
             }
@@ -264,10 +283,13 @@
             processId(idValue);
         });
 
-        // The main brain: checks if they get food or not
+        // Process the ID (Check rules and give food)
         function processId(idValue) {
             const statusDiv = document.getElementById('statusMessage');
             const idInput = document.getElementById('emiratesId');
+            
+            // Show what was scanned in the input box
+            idInput.value = idValue;
 
             if (scannedIDs.length >= MAX_MEALS) {
                 statusDiv.innerText = "⚠️ LIMIT REACHED! All 600 meals have been distributed.";
@@ -290,10 +312,15 @@
                 statusDiv.className = "status success";
                 
                 updateCounter();
+                
+                // Short vibrate for success
+                if(navigator.vibrate) navigator.vibrate(100); 
             }
 
-            // Clear the input box ready for the next person
-            idInput.value = '';
+            // Clear input box after a short delay so user can see what was scanned
+            setTimeout(() => {
+                idInput.value = '';
+            }, 2000);
         }
 
         function resetDay() {
