@@ -3,341 +3,179 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ramadan Food Distribution</title>
-    <script src="https://unpkg.com/html5-qrcode"></script>
+    <title>Ramadan Meal Scanner</title>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <style>
-        :root {
-            --primary: #156064;
-            --secondary: #F8E16C;
-            --success: #28a745;
-            --danger: #dc3545;
-            --bg: #f4f7f6;
-            --text: #333;
-        }
-
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--bg);
-            color: var(--text);
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #f4f4f9;
             margin: 0;
-            padding: 15px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            padding: 20px;
         }
-
         .container {
-            width: 100%;
             max-width: 500px;
+            margin: 0 auto;
             background: white;
             padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-            text-align: center;
-            box-sizing: border-box;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
-
-        h1 {
-            color: var(--primary);
-            font-size: 24px;
-            margin-bottom: 5px;
-        }
-
-        p.subtitle {
-            color: #666;
-            margin-top: 0;
-            font-size: 14px;
-        }
-
-        .counter-box {
-            background-color: var(--primary);
-            color: white;
-            padding: 15px;
-            border-radius: 8px;
-            font-size: 22px;
-            font-weight: bold;
-            margin: 15px 0;
-        }
-
-        /* Scanner Styles */
-        #reader {
+        h2 { color: #333; }
+        .btn {
+            display: block;
             width: 100%;
-            margin-bottom: 15px;
-            border-radius: 8px;
-            overflow: hidden;
-            display: none;
-        }
-
-        button.btn-scan {
-            background-color: #2b8a3e;
+            padding: 15px;
+            margin: 10px 0;
+            font-size: 18px;
+            font-weight: bold;
             color: white;
             border: none;
-            padding: 15px;
-            font-size: 16px;
-            font-weight: bold;
-            border-radius: 8px;
-            cursor: pointer;
-            width: 100%;
-            margin-bottom: 15px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 10px;
-        }
-
-        button.btn-scan.active {
-            background-color: var(--danger);
-        }
-
-        .divider {
-            margin: 15px 0;
-            color: #999;
-            font-size: 14px;
-            font-weight: bold;
-        }
-
-        input[type="text"] {
-            width: 100%;
-            padding: 15px;
-            font-size: 18px;
-            border: 2px solid #ccc;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            text-align: center;
-            box-sizing: border-box;
-        }
-
-        input[type="text"]:focus {
-            border-color: var(--primary);
-            outline: none;
-        }
-
-        button.btn-submit {
-            background-color: var(--secondary);
-            color: #333;
-            border: none;
-            padding: 15px;
-            font-size: 18px;
-            font-weight: bold;
-            border-radius: 8px;
-            cursor: pointer;
-            width: 100%;
-        }
-
-        .status {
-            margin-top: 20px;
-            padding: 15px;
-            border-radius: 8px;
-            font-size: 18px;
-            font-weight: bold;
-            display: none;
-        }
-
-        .status.success {
-            display: block;
-            background-color: #d4edda;
-            color: var(--success);
-            border: 2px solid var(--success);
-        }
-
-        .status.error {
-            display: block;
-            background-color: #f8d7da;
-            color: var(--danger);
-            border: 2px solid var(--danger);
-        }
-
-        .footer-buttons {
-            margin-top: 30px;
-            border-top: 1px solid #eee;
-            padding-top: 15px;
-        }
-
-        button.btn-reset {
-            background-color: #ccc;
-            color: #333;
-            border: none;
-            padding: 10px 15px;
             border-radius: 5px;
             cursor: pointer;
-            font-size: 14px;
         }
+        .btn-camera { background-color: #007bff; }
+        .btn-nfc { background-color: #6f42c1; }
+        .btn-reset { background-color: #dc3545; margin-top: 30px;}
+        
+        #reader { width: 100%; margin-top: 20px; }
+        
+        /* Status Display */
+        #status-box {
+            margin-top: 20px;
+            padding: 20px;
+            font-size: 20px;
+            font-weight: bold;
+            border-radius: 5px;
+            display: none;
+        }
+        .success { background-color: #d4edda; color: #155724; border: 2px solid #28a745; }
+        .error { background-color: #f8d7da; color: #721c24; border: 2px solid #dc3545; }
+        
+        #stats { margin-top: 15px; font-weight: bold; color: #555; }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <h1>🌙 Ramadan Distribution</h1>
-        <p class="subtitle">Emirates for Industrial Cities</p>
+<div class="container">
+    <h2>Ramadan Meal Scanner</h2>
+    <p>Select a method to scan the Emirates ID.</p>
 
-        <div class="counter-box">
-            Meals Given: <span id="mealCount">0</span> / 600
-        </div>
+    <button class="btn btn-camera" onclick="startCameraScan()">📷 Scan ID with Camera</button>
+    <button class="btn btn-nfc" onclick="startNFCScan()">📱 Tap ID (NFC - Android Only)</button>
 
-        <button type="button" id="scanBtn" class="btn-scan" onclick="toggleScanner()">
-            📷 Open Camera Scanner
-        </button>
-        <div id="reader"></div>
+    <div id="reader"></div>
 
-        <div class="divider">OR TYPE MANUALLY</div>
+    <div id="status-box"></div>
+    <div id="stats">Meals Given Today: <span id="meal-count">0</span></div>
 
-        <form id="scannerForm">
-            <input type="text" id="emiratesId" placeholder="Enter Emirates ID" autocomplete="off" required>
-            <button type="submit" class="btn-submit">Verify ID</button>
-        </form>
+    <button class="btn btn-reset" onclick="resetDailyData()">⚠️ Reset All Data for New Day</button>
+</div>
 
-        <div id="statusMessage" class="status"></div>
+<script>
+    // --- CORE LOGIC: CHECKING FOR DUPLICATES ---
+    function processID(idNumber) {
+        let statusBox = document.getElementById("status-box");
+        statusBox.style.display = "block";
 
-        <div class="footer-buttons">
-            <button class="btn-reset" onclick="resetDay()">Reset for Next Day</button>
-        </div>
-    </div>
-
-    <script>
-        const MAX_MEALS = 600;
-        let scannedIDs = JSON.parse(localStorage.getItem('ramadanIDs')) || [];
+        // Get today's date to separate records by day
+        let today = new Date().toISOString().split('T')[0]; 
         
-        // --- Camera Scanner Logic ---
-        let isScanning = false;
-        let html5QrCode;
+        // Fetch existing records from the phone's local storage
+        let records = JSON.parse(localStorage.getItem(`meals_${today}`)) || {};
 
-        function toggleScanner() {
-            const readerDiv = document.getElementById('reader');
-            const scanBtn = document.getElementById('scanBtn');
-
-            // Initialize scanner with specific formats for ID cards (PDF417, Code128, QR)
-            if (!html5QrCode) {
-                html5QrCode = new Html5Qrcode("reader", { 
-                    formatsToSupport: [ 
-                        Html5QrcodeSupportedFormats.QR_CODE, 
-                        Html5QrcodeSupportedFormats.PDF_417, 
-                        Html5QrcodeSupportedFormats.CODE_128,
-                        Html5QrcodeSupportedFormats.CODE_39
-                    ] 
-                });
-            }
-
-            if (isScanning) {
-                // Stop Scanning
-                html5QrCode.stop().then(() => {
-                    isScanning = false;
-                    readerDiv.style.display = 'none';
-                    scanBtn.innerText = "📷 Open Camera Scanner";
-                    scanBtn.classList.remove('active');
-                }).catch(err => console.log("Error stopping scanner", err));
-            } else {
-                // Start Scanning
-                readerDiv.style.display = 'block';
-                
-                // HD Camera Configuration for better barcode reading
-                const cameraConfig = { 
-                    facingMode: "environment",
-                    width: { ideal: 1920 },
-                    height: { ideal: 1080 },
-                    advanced: [{ focusMode: "continuous" }] 
-                };
-
-                html5QrCode.start(
-                    cameraConfig,
-                    {
-                        fps: 10,
-                        qrbox: { width: 300, height: 150 } // Wide box for ID barcodes
-                    },
-                    (decodedText) => {
-                        // SUCCESSFUL SCAN!
-                        // Stop the camera to prevent double-scanning
-                        html5QrCode.stop().then(() => {
-                            isScanning = false;
-                            readerDiv.style.display = 'none';
-                            scanBtn.innerText = "📷 Open Camera Scanner";
-                            scanBtn.classList.remove('active');
-                            
-                            // Process the scanned ID
-                            processId(decodedText);
-                        });
-                    },
-                    (errorMessage) => {
-                        // Ignore continuous scanning errors 
-                    }
-                ).then(() => {
-                    isScanning = true;
-                    scanBtn.innerText = "🛑 Stop Camera";
-                    scanBtn.classList.add('active');
-                }).catch((err) => {
-                    alert("Could not start camera. Please ensure you are using a secure (HTTPS) link and granted camera permissions.");
-                    readerDiv.style.display = 'none';
-                });
-            }
-        }
-
-        // --- Core Application Logic ---
-
-        function updateCounter() {
-            document.getElementById('mealCount').innerText = scannedIDs.length;
-        }
-
-        // Handle manual typing/form submission
-        document.getElementById('scannerForm').addEventListener('submit', function(event) {
-            event.preventDefault();
-            const idValue = document.getElementById('emiratesId').value.trim();
-            processId(idValue);
-        });
-
-        // Process the ID (Check rules and give food)
-        function processId(idValue) {
-            const statusDiv = document.getElementById('statusMessage');
-            const idInput = document.getElementById('emiratesId');
+        if (records[idNumber]) {
+            // ALREADY SCANNED - DENY
+            statusBox.className = "error";
+            statusBox.innerHTML = `❌ STOP! Meal already given.<br><small>ID: ${idNumber}</small>`;
+            playBeep(false);
+        } else {
+            // NEW PERSON - APPROVE
+            records[idNumber] = new Date().toLocaleTimeString(); // Save time they got food
+            localStorage.setItem(`meals_${today}`, JSON.stringify(records));
             
-            // Show what was scanned in the input box
-            idInput.value = idValue;
-
-            if (scannedIDs.length >= MAX_MEALS) {
-                statusDiv.innerText = "⚠️ LIMIT REACHED! All 600 meals have been distributed.";
-                statusDiv.className = "status error";
-                idInput.value = '';
-                return;
-            }
-
-            if (scannedIDs.includes(idValue)) {
-                statusDiv.innerText = "❌ STOP! This person ALREADY received food today.";
-                statusDiv.className = "status error";
-                
-                // Vibrate phone if possible (extra alert for error)
-                if(navigator.vibrate) navigator.vibrate([200, 100, 200]); 
-            } else {
-                scannedIDs.push(idValue);
-                localStorage.setItem('ramadanIDs', JSON.stringify(scannedIDs));
-                
-                statusDiv.innerText = "✅ APPROVED! Give them 1 meal.";
-                statusDiv.className = "status success";
-                
-                updateCounter();
-                
-                // Short vibrate for success
-                if(navigator.vibrate) navigator.vibrate(100); 
-            }
-
-            // Clear input box after a short delay so user can see what was scanned
-            setTimeout(() => {
-                idInput.value = '';
-            }, 2000);
+            statusBox.className = "success";
+            statusBox.innerHTML = `✅ APPROVED! Give Meal.<br><small>ID: ${idNumber}</small>`;
+            playBeep(true);
         }
+        
+        updateStats();
+    }
 
-        function resetDay() {
-            if(confirm("Are you sure you want to reset the count to ZERO for a new day?")) {
-                scannedIDs = [];
-                localStorage.removeItem('ramadanIDs');
-                updateCounter();
+    function updateStats() {
+        let today = new Date().toISOString().split('T')[0];
+        let records = JSON.parse(localStorage.getItem(`meals_${today}`)) || {};
+        document.getElementById("meal-count").innerText = Object.keys(records).length;
+    }
+
+    // --- OPTION 1: CAMERA SCANNER ---
+    // Note: Using a Barcode/QR scanner library is much faster and more reliable 
+    // for mobile web than pure text OCR. Scan the back of the Emirates ID.
+    function startCameraScan() {
+        const html5QrCode = new Html5Qrcode("reader");
+        const qrCodeSuccessCallback = (decodedText, decodedResult) => {
+            // Stop scanning once we get a read
+            html5QrCode.stop().then((ignore) => {
+                document.getElementById("reader").innerHTML = ""; // Clear video
+                processID(decodedText); // Send the scanned text to our logic
+            }).catch((err) => { console.log("Failed to stop scanner."); });
+        };
+        const config = { fps: 10, qrbox: { width: 250, height: 150 } };
+        
+        // Use the back camera
+        html5QrCode.start({ facingMode: "environment" }, config, qrCodeSuccessCallback);
+    }
+
+    // --- OPTION 2: WEB NFC SCANNER ---
+    async function startNFCScan() {
+        let statusBox = document.getElementById("status-box");
+        
+        if ("NDEFReader" in window) {
+            try {
+                const ndef = new NDEFReader();
+                await ndef.scan();
                 
-                const statusDiv = document.getElementById('statusMessage');
-                statusDiv.innerText = "System reset for a new day.";
-                statusDiv.className = "status success";
-                document.getElementById('emiratesId').value = '';
-            }
-        }
+                statusBox.style.display = "block";
+                statusBox.className = "";
+                statusBox.style.backgroundColor = "#fff3cd";
+                statusBox.innerHTML = "Ready! Tap the Emirates ID to the back of the phone.";
 
-        // Initialize on page load
-        updateCounter();
-    </script>
+                ndef.addEventListener("reading", ({ message, serialNumber }) => {
+                    // For Web NFC, reading the encrypted UAE ID data requires keys.
+                    // The easiest unique identifier to grab via web is the chip's serial number.
+                    processID(serialNumber); 
+                });
+            } catch (error) {
+                alert("NFC Error: You may need to grant permission, or NFC is turned off.");
+            }
+        } else {
+            alert("Web NFC is not supported on this device/browser (e.g., iPhones). Please use the Camera Scan instead.");
+        }
+    }
+
+    // --- HELPER FUNCTIONS ---
+    function playBeep(isSuccess) {
+        // Creates a simple audio beep feedback
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        osc.connect(ctx.destination);
+        osc.frequency.value = isSuccess ? 800 : 200; // High pitch for success, low buzz for error
+        osc.start();
+        setTimeout(() => osc.stop(), 300);
+    }
+
+    function resetDailyData() {
+        if(confirm("Are you sure? This will delete all scanned IDs for today.")) {
+            let today = new Date().toISOString().split('T')[0];
+            localStorage.removeItem(`meals_${today}`);
+            document.getElementById("status-box").style.display = "none";
+            updateStats();
+        }
+    }
+
+    // Load stats on startup
+    window.onload = updateStats;
+</script>
+
 </body>
 </html>
