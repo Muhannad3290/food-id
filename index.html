@@ -3,174 +3,120 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ramadan Meal Scanner</title>
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <title>Ramadan OCR Scanner</title>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            background-color: #f4f4f9;
-            margin: 0;
-            padding: 20px;
-        }
-        .container {
-            max-width: 500px;
-            margin: 0 auto;
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        }
-        h2 { color: #333; }
-        .btn {
-            display: block;
-            width: 100%;
-            padding: 15px;
-            margin: 10px 0;
-            font-size: 18px;
-            font-weight: bold;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        .btn-camera { background-color: #007bff; }
-        .btn-nfc { background-color: #6f42c1; }
-        .btn-reset { background-color: #dc3545; margin-top: 30px;}
-        
-        #reader { width: 100%; margin-top: 20px; }
-        
-        /* Status Display */
-        #status-box {
-            margin-top: 20px;
-            padding: 20px;
-            font-size: 20px;
-            font-weight: bold;
-            border-radius: 5px;
-            display: none;
-        }
+        body { font-family: Arial, sans-serif; text-align: center; background: #f4f4f9; padding: 10px; }
+        .container { max-width: 500px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        video { width: 100%; border-radius: 5px; border: 2px solid #ccc; background: #000; }
+        .btn { width: 100%; padding: 15px; margin: 10px 0; font-size: 18px; font-weight: bold; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        .btn-start { background-color: #007bff; }
+        .btn-scan { background-color: #28a745; display: none; }
+        #status-box { margin-top: 15px; padding: 15px; font-size: 18px; font-weight: bold; border-radius: 5px; display: none; }
         .success { background-color: #d4edda; color: #155724; border: 2px solid #28a745; }
         .error { background-color: #f8d7da; color: #721c24; border: 2px solid #dc3545; }
-        
-        #stats { margin-top: 15px; font-weight: bold; color: #555; }
+        .loading { background-color: #fff3cd; color: #856404; border: 2px solid #ffeeba; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>Ramadan Meal Scanner</h2>
-    <p>Select a method to scan the Emirates ID.</p>
+    <h2>Emirates ID Scanner</h2>
+    
+    <video id="camera-feed" autoplay playsinline></video>
+    
+    <canvas id="snapshot" style="display: none;"></canvas>
 
-    <button class="btn btn-camera" onclick="startCameraScan()">📷 Scan ID with Camera</button>
-    <button class="btn btn-nfc" onclick="startNFCScan()">📱 Tap ID (NFC - Android Only)</button>
-
-    <div id="reader"></div>
+    <button id="start-btn" class="btn btn-start" onclick="startCamera()">1. Turn On Camera</button>
+    <button id="scan-btn" class="btn btn-scan" onclick="takeSnapshotAndScan()">2. Scan ID Front</button>
 
     <div id="status-box"></div>
-    <div id="stats">Meals Given Today: <span id="meal-count">0</span></div>
-
-    <button class="btn btn-reset" onclick="resetDailyData()">⚠️ Reset All Data for New Day</button>
+    <p style="font-weight: bold; color: #555;">Meals Given Today: <span id="meal-count">0</span></p>
 </div>
 
 <script>
-    // --- CORE LOGIC: CHECKING FOR DUPLICATES ---
-    function processID(idNumber) {
-        let statusBox = document.getElementById("status-box");
-        statusBox.style.display = "block";
+    const video = document.getElementById('camera-feed');
+    const canvas = document.getElementById('snapshot');
+    const ctx = canvas.getContext('2d');
+    const statusBox = document.getElementById('status-box');
 
-        // Get today's date to separate records by day
-        let today = new Date().toISOString().split('T')[0]; 
+    // 1. Start the Mobile Camera (Requires HTTPS or Localhost)
+    async function startCamera() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: "environment" } // Forces back camera on phones
+            });
+            video.srcObject = stream;
+            document.getElementById('start-btn').style.display = 'none';
+            document.getElementById('scan-btn').style.display = 'block';
+        } catch (err) {
+            alert("Camera access denied! You must use an HTTPS connection or Localhost.");
+            console.error(err);
+        }
+    }
+
+    // 2. Capture Frame and Run OCR
+    function takeSnapshotAndScan() {
+        // Set canvas to match video size
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
         
-        // Fetch existing records from the phone's local storage
+        // Draw the current video frame onto the canvas
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        // Get the image data
+        const imageData = canvas.toDataURL('image/png');
+        
+        showStatus("Scanning... Please hold.", "loading");
+
+        // Run Tesseract OCR
+        Tesseract.recognize(
+            imageData,
+            'eng',
+            { logger: m => console.log(m) } // Optional: shows progress in console
+        ).then(({ data: { text } }) => {
+            console.log("Found Text:", text);
+            
+            // Look for the Emirates ID pattern: 784-XXXX-XXXXXXX-X
+            const emiratesIdRegex = /784-\d{4}-\d{7}-\d{1}/;
+            const match = text.match(emiratesIdRegex);
+
+            if (match) {
+                processID(match[0]); // Send the ID to our duplicate checker
+            } else {
+                showStatus("Could not read ID number. Please try again.", "error");
+            }
+        }).catch(err => {
+            showStatus("Error scanning image.", "error");
+            console.error(err);
+        });
+    }
+
+    // 3. Database Logic (LocalStorage)
+    function processID(idNumber) {
+        let today = new Date().toISOString().split('T')[0]; 
         let records = JSON.parse(localStorage.getItem(`meals_${today}`)) || {};
 
         if (records[idNumber]) {
-            // ALREADY SCANNED - DENY
-            statusBox.className = "error";
-            statusBox.innerHTML = `❌ STOP! Meal already given.<br><small>ID: ${idNumber}</small>`;
-            playBeep(false);
+            showStatus(`❌ STOP! Meal already given.<br><small>ID: ${idNumber}</small>`, "error");
         } else {
-            // NEW PERSON - APPROVE
-            records[idNumber] = new Date().toLocaleTimeString(); // Save time they got food
+            records[idNumber] = new Date().toLocaleTimeString(); 
             localStorage.setItem(`meals_${today}`, JSON.stringify(records));
-            
-            statusBox.className = "success";
-            statusBox.innerHTML = `✅ APPROVED! Give Meal.<br><small>ID: ${idNumber}</small>`;
-            playBeep(true);
+            showStatus(`✅ APPROVED! Give Meal.<br><small>ID: ${idNumber}</small>`, "success");
         }
-        
         updateStats();
+    }
+
+    function showStatus(message, type) {
+        statusBox.style.display = "block";
+        statusBox.className = type;
+        statusBox.innerHTML = message;
     }
 
     function updateStats() {
         let today = new Date().toISOString().split('T')[0];
         let records = JSON.parse(localStorage.getItem(`meals_${today}`)) || {};
         document.getElementById("meal-count").innerText = Object.keys(records).length;
-    }
-
-    // --- OPTION 1: CAMERA SCANNER ---
-    // Note: Using a Barcode/QR scanner library is much faster and more reliable 
-    // for mobile web than pure text OCR. Scan the back of the Emirates ID.
-    function startCameraScan() {
-        const html5QrCode = new Html5Qrcode("reader");
-        const qrCodeSuccessCallback = (decodedText, decodedResult) => {
-            // Stop scanning once we get a read
-            html5QrCode.stop().then((ignore) => {
-                document.getElementById("reader").innerHTML = ""; // Clear video
-                processID(decodedText); // Send the scanned text to our logic
-            }).catch((err) => { console.log("Failed to stop scanner."); });
-        };
-        const config = { fps: 10, qrbox: { width: 250, height: 150 } };
-        
-        // Use the back camera
-        html5QrCode.start({ facingMode: "environment" }, config, qrCodeSuccessCallback);
-    }
-
-    // --- OPTION 2: WEB NFC SCANNER ---
-    async function startNFCScan() {
-        let statusBox = document.getElementById("status-box");
-        
-        if ("NDEFReader" in window) {
-            try {
-                const ndef = new NDEFReader();
-                await ndef.scan();
-                
-                statusBox.style.display = "block";
-                statusBox.className = "";
-                statusBox.style.backgroundColor = "#fff3cd";
-                statusBox.innerHTML = "Ready! Tap the Emirates ID to the back of the phone.";
-
-                ndef.addEventListener("reading", ({ message, serialNumber }) => {
-                    // For Web NFC, reading the encrypted UAE ID data requires keys.
-                    // The easiest unique identifier to grab via web is the chip's serial number.
-                    processID(serialNumber); 
-                });
-            } catch (error) {
-                alert("NFC Error: You may need to grant permission, or NFC is turned off.");
-            }
-        } else {
-            alert("Web NFC is not supported on this device/browser (e.g., iPhones). Please use the Camera Scan instead.");
-        }
-    }
-
-    // --- HELPER FUNCTIONS ---
-    function playBeep(isSuccess) {
-        // Creates a simple audio beep feedback
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const osc = ctx.createOscillator();
-        osc.connect(ctx.destination);
-        osc.frequency.value = isSuccess ? 800 : 200; // High pitch for success, low buzz for error
-        osc.start();
-        setTimeout(() => osc.stop(), 300);
-    }
-
-    function resetDailyData() {
-        if(confirm("Are you sure? This will delete all scanned IDs for today.")) {
-            let today = new Date().toISOString().split('T')[0];
-            localStorage.removeItem(`meals_${today}`);
-            document.getElementById("status-box").style.display = "none";
-            updateStats();
-        }
     }
 
     // Load stats on startup
