@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ramadan Food Distribution</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        :root {
+            --primary: #156064;
+            --secondary: #F8E16C;
+            --success: #28a745;
+            --danger: #dc3545;
+            --bg: #f4f7f6;
+            --text: #333;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 500px;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            text-align: center;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            color: var(--primary);
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        p.subtitle {
+            color: #666;
+            margin-top: 0;
+            font-size: 14px;
+        }
+
+        .counter-box {
+            background-color: var(--primary);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 22px;
+            font-weight: bold;
+            margin: 15px 0;
+        }
+
+        /* Scanner Styles */
+        #reader {
+            width: 100%;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            overflow: hidden;
+            display: none; /* Hidden until button is clicked */
+        }
+
+        button.btn-scan {
+            background-color: #2b8a3e;
+            color: white;
+            border: none;
+            padding: 15px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+        }
+
+        button.btn-scan.active {
+            background-color: var(--danger);
+        }
+
+        .divider {
+            margin: 15px 0;
+            color: #999;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 15px;
+            font-size: 18px;
+            border: 2px solid #ccc;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            text-align: center;
+            box-sizing: border-box;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--primary);
+            outline: none;
+        }
+
+        button.btn-submit {
+            background-color: var(--secondary);
+            color: #333;
+            border: none;
+            padding: 15px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: bold;
+            display: none;
+        }
+
+        .status.success {
+            display: block;
+            background-color: #d4edda;
+            color: var(--success);
+            border: 2px solid var(--success);
+        }
+
+        .status.error {
+            display: block;
+            background-color: #f8d7da;
+            color: var(--danger);
+            border: 2px solid var(--danger);
+        }
+
+        .footer-buttons {
+            margin-top: 30px;
+            border-top: 1px solid #eee;
+            padding-top: 15px;
+        }
+
+        button.btn-reset {
+            background-color: #ccc;
+            color: #333;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>🌙 Ramadan Distribution</h1>
+        <p class="subtitle">Sharjah Industrial Cities</p>
+
+        <div class="counter-box">
+            Meals Given: <span id="mealCount">0</span> / 600
+        </div>
+
+        <button type="button" id="scanBtn" class="btn-scan" onclick="toggleScanner()">
+            📷 Open Camera Scanner
+        </button>
+        <div id="reader"></div>
+
+        <div class="divider">OR TYPE MANUALLY</div>
+
+        <form id="scannerForm">
+            <input type="text" id="emiratesId" placeholder="Enter Emirates ID" autocomplete="off" required>
+            <button type="submit" class="btn-submit">Verify ID</button>
+        </form>
+
+        <div id="statusMessage" class="status"></div>
+
+        <div class="footer-buttons">
+            <button class="btn-reset" onclick="resetDay()">Reset for Next Day</button>
+        </div>
+    </div>
+
+    <script>
+        const MAX_MEALS = 600;
+        let scannedIDs = JSON.parse(localStorage.getItem('ramadanIDs')) || [];
+        
+        // --- Camera Scanner Logic ---
+        let isScanning = false;
+        let html5QrCode;
+
+        function toggleScanner() {
+            const readerDiv = document.getElementById('reader');
+            const scanBtn = document.getElementById('scanBtn');
+
+            // Initialize the scanner if it hasn't been created yet
+            if (!html5QrCode) {
+                html5QrCode = new Html5Qrcode("reader");
+            }
+
+            if (isScanning) {
+                // Stop Scanning
+                html5QrCode.stop().then(() => {
+                    isScanning = false;
+                    readerDiv.style.display = 'none';
+                    scanBtn.innerText = "📷 Open Camera Scanner";
+                    scanBtn.classList.remove('active');
+                }).catch(err => console.log("Error stopping scanner", err));
+            } else {
+                // Start Scanning
+                readerDiv.style.display = 'block';
+                html5QrCode.start(
+                    { facingMode: "environment" }, // Use back camera
+                    {
+                        fps: 10,
+                        qrbox: { width: 300, height: 150 } // Wide box for ID barcodes
+                    },
+                    (decodedText) => {
+                        // SUCCESSFUL SCAN!
+                        document.getElementById('emiratesId').value = decodedText;
+                        
+                        // Briefly stop the camera so it doesn't scan the same card 50 times in a second
+                        toggleScanner(); 
+                        
+                        // Process the scanned ID automatically
+                        processId(decodedText);
+                    },
+                    (errorMessage) => {
+                        // Ignore continuous scanning errors 
+                    }
+                ).then(() => {
+                    isScanning = true;
+                    scanBtn.innerText = "🛑 Stop Camera";
+                    scanBtn.classList.add('active');
+                }).catch((err) => {
+                    alert("Could not start camera. Please ensure you gave permission and are using a secure (HTTPS) link.");
+                    readerDiv.style.display = 'none';
+                });
+            }
+        }
+
+        // --- Core Application Logic ---
+
+        function updateCounter() {
+            document.getElementById('mealCount').innerText = scannedIDs.length;
+        }
+
+        // Handle manual typing/form submission
+        document.getElementById('scannerForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const idValue = document.getElementById('emiratesId').value.trim();
+            processId(idValue);
+        });
+
+        // The main brain: checks if they get food or not
+        function processId(idValue) {
+            const statusDiv = document.getElementById('statusMessage');
+            const idInput = document.getElementById('emiratesId');
+
+            if (scannedIDs.length >= MAX_MEALS) {
+                statusDiv.innerText = "⚠️ LIMIT REACHED! All 600 meals have been distributed.";
+                statusDiv.className = "status error";
+                idInput.value = '';
+                return;
+            }
+
+            if (scannedIDs.includes(idValue)) {
+                statusDiv.innerText = "❌ STOP! This person ALREADY received food today.";
+                statusDiv.className = "status error";
+                
+                // Vibrate phone if possible (extra alert for error)
+                if(navigator.vibrate) navigator.vibrate([200, 100, 200]); 
+            } else {
+                scannedIDs.push(idValue);
+                localStorage.setItem('ramadanIDs', JSON.stringify(scannedIDs));
+                
+                statusDiv.innerText = "✅ APPROVED! Give them 1 meal.";
+                statusDiv.className = "status success";
+                
+                updateCounter();
+            }
+
+            // Clear the input box ready for the next person
+            idInput.value = '';
+        }
+
+        function resetDay() {
+            if(confirm("Are you sure you want to reset the count to ZERO for a new day?")) {
+                scannedIDs = [];
+                localStorage.removeItem('ramadanIDs');
+                updateCounter();
+                
+                const statusDiv = document.getElementById('statusMessage');
+                statusDiv.innerText = "System reset for a new day.";
+                statusDiv.className = "status success";
+                document.getElementById('emiratesId').value = '';
+            }
+        }
+
+        // Initialize on page load
+        updateCounter();
+    </script>
+</body>
+</html>
