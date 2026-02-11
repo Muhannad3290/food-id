@@ -3,120 +3,127 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ramadan OCR Scanner</title>
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+    <title>High-Speed Ramadan Scanner</title>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; background: #f4f4f9; padding: 10px; }
-        .container { max-width: 500px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
-        video { width: 100%; border-radius: 5px; border: 2px solid #ccc; background: #000; }
-        .btn { width: 100%; padding: 15px; margin: 10px 0; font-size: 18px; font-weight: bold; color: white; border: none; border-radius: 5px; cursor: pointer; }
-        .btn-start { background-color: #007bff; }
-        .btn-scan { background-color: #28a745; display: none; }
-        #status-box { margin-top: 15px; padding: 15px; font-size: 18px; font-weight: bold; border-radius: 5px; display: none; }
-        .success { background-color: #d4edda; color: #155724; border: 2px solid #28a745; }
-        .error { background-color: #f8d7da; color: #721c24; border: 2px solid #dc3545; }
-        .loading { background-color: #fff3cd; color: #856404; border: 2px solid #ffeeba; }
+        body { font-family: Arial, sans-serif; text-align: center; background: #222; color: white; margin: 0; padding: 10px; }
+        .container { max-width: 500px; margin: 0 auto; background: #333; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.5); }
+        h2 { margin-top: 0; color: #fff; }
+        
+        /* Scanner Viewfinder */
+        #reader { width: 100%; border-radius: 10px; overflow: hidden; border: 3px solid #555; background: black; }
+        
+        /* Big, clear status boxes for fast moving lines */
+        #status-box { margin-top: 15px; padding: 20px; font-size: 22px; font-weight: bold; border-radius: 8px; display: none; }
+        .success { background-color: #28a745; color: white; border: 3px solid #1e7e34; }
+        .error { background-color: #dc3545; color: white; border: 3px solid #b02a37; }
+        
+        #stats { margin-top: 20px; font-size: 18px; font-weight: bold; color: #aaa; }
+        #meal-count { color: #28a745; font-size: 24px; }
+        
+        .btn-start { width: 100%; padding: 15px; font-size: 20px; font-weight: bold; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; margin-bottom: 15px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>Emirates ID Scanner</h2>
+    <h2>⚡ Fast Scan (Back of ID)</h2>
     
-    <video id="camera-feed" autoplay playsinline></video>
-    
-    <canvas id="snapshot" style="display: none;"></canvas>
+    <button id="start-btn" class="btn-start" onclick="startFastScanner()">Start Live Scanner</button>
 
-    <button id="start-btn" class="btn btn-start" onclick="startCamera()">1. Turn On Camera</button>
-    <button id="scan-btn" class="btn btn-scan" onclick="takeSnapshotAndScan()">2. Scan ID Front</button>
+    <div id="reader"></div>
 
     <div id="status-box"></div>
-    <p style="font-weight: bold; color: #555;">Meals Given Today: <span id="meal-count">0</span></p>
+    
+    <div id="stats">Meals Given Today: <span id="meal-count">0</span></div>
 </div>
 
 <script>
-    const video = document.getElementById('camera-feed');
-    const canvas = document.getElementById('snapshot');
-    const ctx = canvas.getContext('2d');
-    const statusBox = document.getElementById('status-box');
+    let isProcessing = false; // Prevents double-scanning the same card in 1 second
 
-    // 1. Start the Mobile Camera (Requires HTTPS or Localhost)
-    async function startCamera() {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: "environment" } // Forces back camera on phones
-            });
-            video.srcObject = stream;
-            document.getElementById('start-btn').style.display = 'none';
-            document.getElementById('scan-btn').style.display = 'block';
-        } catch (err) {
-            alert("Camera access denied! You must use an HTTPS connection or Localhost.");
-            console.error(err);
-        }
-    }
+    // 1. Start the High-Speed Scanner
+    function startFastScanner() {
+        document.getElementById('start-btn').style.display = 'none';
 
-    // 2. Capture Frame and Run OCR
-    function takeSnapshotAndScan() {
-        // Set canvas to match video size
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+        const html5QrCode = new Html5Qrcode("reader");
         
-        // Draw the current video frame onto the canvas
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        
-        // Get the image data
-        const imageData = canvas.toDataURL('image/png');
-        
-        showStatus("Scanning... Please hold.", "loading");
+        // Configuration: scans 10 times a second
+        const config = { fps: 10, qrbox: { width: 300, height: 150 } };
 
-        // Run Tesseract OCR
-        Tesseract.recognize(
-            imageData,
-            'eng',
-            { logger: m => console.log(m) } // Optional: shows progress in console
-        ).then(({ data: { text } }) => {
-            console.log("Found Text:", text);
-            
-            // Look for the Emirates ID pattern: 784-XXXX-XXXXXXX-X
-            const emiratesIdRegex = /784-\d{4}-\d{7}-\d{1}/;
-            const match = text.match(emiratesIdRegex);
-
-            if (match) {
-                processID(match[0]); // Send the ID to our duplicate checker
-            } else {
-                showStatus("Could not read ID number. Please try again.", "error");
-            }
-        }).catch(err => {
-            showStatus("Error scanning image.", "error");
+        // Start scanning the back camera
+        html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
+        .catch(err => {
+            alert("Camera error. Make sure you are using HTTPS.");
             console.error(err);
         });
     }
 
-    // 3. Database Logic (LocalStorage)
+    // 2. Triggered instantly when a barcode is found
+    function onScanSuccess(decodedText) {
+        if (isProcessing) return; // Ignore if we are currently showing a result
+        
+        isProcessing = true; // Lock the scanner briefly
+
+        // Sometimes the barcode has extra data. Let's pull out just the 15 digit ID.
+        // It looks for 784 followed by numbers and hyphens.
+        let extractedID = decodedText;
+        const idMatch = decodedText.match(/(784[0-9\-]{12,14})/);
+        if (idMatch) {
+            extractedID = idMatch[0].replace(/-/g, ''); // Remove hyphens so it's a clean 15-digit number
+        }
+
+        processID(extractedID);
+
+        // Wait 2.5 seconds before allowing the next scan (gives volunteer time to hand over food)
+        setTimeout(() => {
+            isProcessing = false;
+            document.getElementById("status-box").style.display = "none";
+        }, 2500);
+    }
+
+    // 3. Database Logic (Instant LocalStorage check)
     function processID(idNumber) {
+        let statusBox = document.getElementById("status-box");
         let today = new Date().toISOString().split('T')[0]; 
         let records = JSON.parse(localStorage.getItem(`meals_${today}`)) || {};
 
+        statusBox.style.display = "block";
+
         if (records[idNumber]) {
-            showStatus(`❌ STOP! Meal already given.<br><small>ID: ${idNumber}</small>`, "error");
+            // Already eaten!
+            statusBox.className = "error";
+            statusBox.innerHTML = `❌ ALREADY SERVED!<br><span style="font-size:16px;">ID: ${idNumber}</span>`;
+            playBeep(false);
         } else {
+            // New person!
             records[idNumber] = new Date().toLocaleTimeString(); 
             localStorage.setItem(`meals_${today}`, JSON.stringify(records));
-            showStatus(`✅ APPROVED! Give Meal.<br><small>ID: ${idNumber}</small>`, "success");
+            
+            statusBox.className = "success";
+            statusBox.innerHTML = `✅ APPROVED!<br><span style="font-size:16px;">ID: ${idNumber}</span>`;
+            playBeep(true);
         }
+        
         updateStats();
-    }
-
-    function showStatus(message, type) {
-        statusBox.style.display = "block";
-        statusBox.className = type;
-        statusBox.innerHTML = message;
     }
 
     function updateStats() {
         let today = new Date().toISOString().split('T')[0];
         let records = JSON.parse(localStorage.getItem(`meals_${today}`)) || {};
         document.getElementById("meal-count").innerText = Object.keys(records).length;
+    }
+
+    // Audio Feedback (Crucial for fast lines so you don't have to look at the screen)
+    function playBeep(isSuccess) {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            osc.connect(ctx.destination);
+            osc.frequency.value = isSuccess ? 1000 : 150; // High beep for success, low buzz for error
+            osc.type = isSuccess ? 'sine' : 'sawtooth';
+            osc.start();
+            setTimeout(() => osc.stop(), isSuccess ? 200 : 500);
+        } catch(e) {}
     }
 
     // Load stats on startup
